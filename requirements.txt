@@ -1,0 +1,9 @@
+# File processing
+PyYAML
+
+# Scientific packages
+numpy
+scipy
+
+# Plotting
+matplotlib

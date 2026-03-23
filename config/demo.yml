@@ -1,0 +1,19 @@
+# configuration file for gaintwist.py
+
+gaintype: 'linear' # linear, sinusoid
+ti: 14 # Initial twist: 1:X
+tf: 13.5 # Final twist: 1:X
+numgrooves: 5 # Number of grooves
+stockL: 28 # Stock length (inches)
+rifleL: 19.5 # Final rifled length (inches) 
+startnogainL: 2 # Starting constant rifling length (inches)
+endnogainL: 1.5 # Ending constant rifling length (inches)
+startrifleL: 2.5 # Distance from start of stock to start of rifling (inches)
+startcutterL: 1.1 # Cutter start airgap (inches)
+endcutterL: 0.3 # Cutter end airgap (inches)
+zprec: 0.05 # Desired precision (linear step size in inches) 
+rate: 5000 # Feed rate (inches/min)
+turnrate: 3500 # Turn rate (~inches/min)
+slowturnrate: 1500 # Slow turn rate for cutter advance
+linearrate: 6 # Linear feed rate for cutter advance
+advancedegrees: 9 # Advance angle (degrees) 
