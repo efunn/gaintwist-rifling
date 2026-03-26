@@ -8,7 +8,7 @@ from scipy.interpolate import CubicSpline
 # interpret command line arguments
 parser = argparse.ArgumentParser(description='G-code config parameters')
 parser.add_argument('-c','--config', help='Configuration file', default=None)
-parser.add_argument('-o','--output', help='Output file name', default='demo')
+parser.add_argument('-o','--output', help='Output file name', default=None)
 parser.add_argument('-m','--message', help='Optional comment message', default=None)
 parser.add_argument('-p','--plot', help='Plot the rifling cut', action='store_true', default=False)
 args = parser.parse_args()
@@ -85,7 +85,7 @@ def advance_cutter(f, turnrate, slowturnrate, linearrate, advancedegrees, Z):
     f.write('G1 F'+repr(slowturnrate)+' A0\n')
     f.write('G1 F'+repr(linearrate)+' Z'+repr(round(0,3))+'\n')
 
-def gcode_gen(filename, Z, Y, numgrooves, rate, turnrate,
+def gcode_gen(filename, configname, Z, Y, numgrooves, rate, turnrate,
         slowturnrate, linearrate, advancedegrees, comments):
     # set up parameters
     RATE = rate
@@ -100,10 +100,12 @@ def gcode_gen(filename, Z, Y, numgrooves, rate, turnrate,
 
     # open gcode file and write
     gc = open(filename+'.nc','w')
-    gc.write('(filename: '+filename+')\n')
+    gc.write('(filename: '+filename+'.nc)\n')
+    gc.write('(config: ./config/'+configname+'.yml)\n')
     gc.write('(comments: '+comments+')\n')
     # Main Program Start
     gc.write('G17 G20 G40 G49 G64 G80 G90\n')
+    gc.write('#1 = 0 (variable monitor for cycle count)\n')
     gc.write('M98 P2000 L5 (adjust L__ for N-1 cycles)\n') # Subroutine L value is number of cycles
     gc.write('M98 P2001 L1\n') 
     gc.write('M30\n') # Main Program Stop
@@ -129,6 +131,7 @@ def gcode_gen(filename, Z, Y, numgrooves, rate, turnrate,
     gc.write('M8\n')
     gc.write('G1 F'+repr(RATE)+' A0 Z'+'%.3f'%Zfwd[0]+'\n')
     gc.write('G4 P1 (PAUSE TO CHECK ROTARY TABLE)\n')
+    gc.write('#1 = [#1+1] (variable monitor for cycle count)\n')
     for idx in range(numgrooves):
         groove(gc,Zfwd,Yfwd,RATE,incrgroove,idx,0)
         cool_cycle(gc)
@@ -184,8 +187,27 @@ def main():
         with open(config_dir) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
     except:
+        print('WARNING:')
         print('Configuration file '+config_name+'.yml not found')
         sys.exit(1)
+
+    if args.output is not None:
+        output_filename = args.output
+    else:
+        output_filename = input('Output file (./gcode/"_____".nc): ')
+
+    output_path = os.path.join('./gcode/',output_filename)
+    if output_filename != 'demo':
+        if os.path.exists(output_path+'.nc'):
+            print('WARNING:')
+            print('Output file '+output_path+'.nc already exists!')
+            print('Aborting...')
+            sys.exit(1)
+
+    if args.message is not None:
+        comments = args.message
+    else:
+        comments = input('Commments (press enter to generate G-Code): ')
 
     gaintype = config['gaintype']
     ti = config['ti']
@@ -213,17 +235,7 @@ def main():
     z_calc, y_calc = gain_twist(gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
         start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
 
-    output_filename = os.path.join('./gcode/',args.output)
-    if args.output != 'demo':
-        if os.path.exists(output_filename+'.nc'):
-            raise RuntimeError('Output file already exists!')
-
-    if args.message is not None:
-        comments = args.message
-    else:
-        comments = input('Commments (press enter to generate G-Code): ')
-
-    gcode_gen(output_filename, z_calc, y_calc, numgrooves, rate, turnrate, 
+    gcode_gen(output_path, config_name, z_calc, y_calc, numgrooves, rate, turnrate, 
         slowturnrate, linearrate, advancedegrees, comments)
 
     if args.plot:
