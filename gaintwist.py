@@ -13,7 +13,7 @@ parser.add_argument('-m','--message', help='Optional comment message', default=N
 parser.add_argument('-p','--plot', help='Plot the rifling cut', action='store_true', default=False)
 args = parser.parse_args()
 
-def gain_twist(gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
+def gain_twist(output_type, gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
         start_cut_z, end_cut_z, start_rifling_z, end_rifling_z):
     z_calc = np.arange(start_cut_z, end_cut_z+zprec, zprec)
     twist_calc = z_calc.copy()
@@ -31,13 +31,20 @@ def gain_twist(gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
         [ti,tf], bc_type=bc_type)
     rifling_idxs = (z_calc>=start_gain_z)&(z_calc<=end_gain_z)
     twist_calc[rifling_idxs] = twist_interp(z_calc[rifling_idxs])
-    y_calc = twist_to_angle(twist_calc, zprec)
-    y_calc = y_calc-y_calc[0]
+
+    if output_type == 'twist':
+        y_calc = twist_calc
+    elif output_type == 'angle_per_step':
+        y_calc = twist_to_angle(twist_calc, zprec)
+    elif output_type == 'accumulated_angle':
+        y_calc = np.cumsum(twist_to_angle(twist_calc, zprec))
+        y_calc = y_calc-y_calc[0]
+
     return z_calc, y_calc
 
 # twist is 1:inches (360 degrees : inches)
 def twist_to_angle(twist, zprec):
-    return np.cumsum(zprec*360/twist)
+    return zprec*360/twist
 
 def plot_rifling(Z, Y, start_rifling_z, end_rifling_z, startnogainL, endnogainL):
     import matplotlib.pyplot as plt
@@ -52,6 +59,50 @@ def plot_rifling(Z, Y, start_rifling_z, end_rifling_z, startnogainL, endnogainL)
     plt.ylabel('angle (degrees)')
     plt.yticks(np.arange(0,180*np.ceil(Y.max()/180)+1,180),
         np.arange(0,180*np.ceil(Y.max()/180)+1,180).astype(int))
+    plt.show()
+
+def plot_rifling_debug(Z, Y, Y_twist, Y_per_step, start_rifling_z, end_rifling_z, startnogainL, endnogainL):
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+
+    f = plt.figure()
+    gs = gridspec.GridSpec(4,1)
+
+    ax1 = plt.subplot(gs[0])
+    ax2 = plt.subplot(gs[1])
+    ax3 = plt.subplot(gs[2])
+    ax4 = plt.subplot(gs[3])
+
+    ax1.plot(Z, Y_twist, 'black')
+    ax1.set_title('twist rate')
+    ax1.set_yticks([Y_twist[0],Y_twist[-1]])
+    ax1.set_ylabel('twist (1:X)')
+
+    ax2.plot(Z, Y_per_step, 'black')
+    Z_step = Z[1]-Z[0]
+    ax2.set_title(f'angle per step ({Z_step:.3f}in)')
+    ax2.set_yticks(np.linspace(Y_per_step[0],Y_per_step[-1],5))
+    ax2.set_ylabel('angle (deg)')
+
+    y_min, y_max = Y.min(), Y.max()
+    ax3.plot([start_rifling_z,start_rifling_z],[y_min,y_max],'grey','--')
+    ax3.plot([end_rifling_z,end_rifling_z],[y_min,y_max],'grey')
+    ax3.plot([start_rifling_z+startnogainL,start_rifling_z+startnogainL],[y_min,y_max],'red')
+    ax3.plot([end_rifling_z-endnogainL,end_rifling_z-endnogainL],[y_min,y_max],'red')
+    ax3.plot(Z, Y, 'black')
+    ax3.set_ylabel('angle (deg)')
+    ax3.set_yticks(np.arange(0,180*np.ceil(Y.max()/180)+1,180),
+        np.arange(0,180*np.ceil(Y.max()/180)+1,180).astype(int))
+    ax3.set_title('unwrapped rifling cut')
+
+    backcalc_twist = 1/np.diff(np.round(Y,3),prepend=-Y[1])*360*Z_step
+    backcalc_twist_error = Y_twist-backcalc_twist
+    ax4.plot(Z, backcalc_twist_error, color='grey',linewidth=0.5)
+    ax4.set_title('twist quantization error')
+    ax4.set_xlabel('barrel position (inches)')
+    ax4.set_ylabel('twist err (1:X)')
+
+    plt.tight_layout()
     plt.show()
 
 def cool_cycle(f):
@@ -232,14 +283,19 @@ def main():
     start_rifling_z = startcutterL+startrifleL
     end_rifling_z = start_rifling_z+rifleL
 
-    z_calc, y_calc = gain_twist(gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
+    z_calc, y_calc = gain_twist('accumulated_angle', gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
+        start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
+
+    _, y_twist = gain_twist('twist', gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
+        start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
+    _, y_per_step = gain_twist('angle_per_step', gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
         start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
 
     gcode_gen(output_path, config_name, z_calc, y_calc, numgrooves, rate, turnrate, 
         slowturnrate, linearrate, advancedegrees, comments)
 
     if args.plot:
-        plot_rifling(z_calc, y_calc, start_rifling_z, end_rifling_z, startnogainL, endnogainL)
+        plot_rifling_debug(z_calc, y_calc, y_twist, y_per_step, start_rifling_z, end_rifling_z, startnogainL, endnogainL)
 
 if __name__ == '__main__':
     main()
