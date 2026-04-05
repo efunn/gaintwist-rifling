@@ -61,7 +61,7 @@ def plot_rifling(Z, Y, start_rifling_z, end_rifling_z, startnogainL, endnogainL)
         np.arange(0,180*np.ceil(Y.max()/180)+1,180).astype(int))
     plt.show()
 
-def plot_rifling_debug(Z, Y, Y_linear, Y_twist, Y_per_step, Y_per_step_linear, start_rifling_z, end_rifling_z, startnogainL, endnogainL):
+def plot_rifling_debug(Z, Y, Y_linear, Y_twist, Y_per_step, Y_constant, start_rifling_z, end_rifling_z, startnogainL, endnogainL):
     import matplotlib.pyplot as plt
     import matplotlib.gridspec as gridspec
 
@@ -108,10 +108,10 @@ def plot_rifling_debug(Z, Y, Y_linear, Y_twist, Y_per_step, Y_per_step_linear, s
     ax4.set_title('difference from linear (accumulated angle)')
     ax4.set_ylabel('angle (deg)')
 
-    diff_angle_per = Y_per_step-Y_per_step_linear
+    diff_angle_2 = Y-Y_constant
     ax5.plot((Z[0],Z[-1]), [0,0], color='grey',linewidth=2.0)
-    ax5.plot(Z, diff_angle_per, color='red')
-    ax5.set_title('difference from linear gain (incremental)')
+    ax5.plot(Z, diff_angle_2, color='red')
+    ax5.set_title('difference from constant twist (accumulated angle)')
     ax5.set_ylabel('angle (deg)')
     ax5.set_xlabel('barrel position (inches)')
 
@@ -303,16 +303,16 @@ def main():
         start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
     _, y_twist = gain_twist('twist', gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
         start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
-    _, y_per_step = gain_twist('angle_per_step', gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
+    _, y_calc_constant = gain_twist('accumulated_angle', 'linear', ti, ti, zprec, rifleL, startnogainL, endnogainL,
         start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
-    _, y_per_step_linear = gain_twist('angle_per_step', 'linear', ti, tf, zprec, rifleL, startnogainL, endnogainL,
+    _, y_per_step = gain_twist('angle_per_step', gaintype, ti, tf, zprec, rifleL, startnogainL, endnogainL,
         start_cut_z, end_cut_z, start_rifling_z, end_rifling_z)
 
     gcode_gen(output_path, config_name, z_calc, y_calc, numgrooves, rate, turnrate, 
         slowturnrate, linearrate, advancedegrees, comments)
 
     if args.plot:
-        plot_rifling_debug(z_calc, y_calc, y_calc_linear, y_twist, y_per_step, y_per_step_linear, start_rifling_z, end_rifling_z, startnogainL, endnogainL)
+        plot_rifling_debug(z_calc, y_calc, y_calc_linear, y_twist, y_per_step, y_calc_constant, start_rifling_z, end_rifling_z, startnogainL, endnogainL)
 
 if __name__ == '__main__':
     main()
